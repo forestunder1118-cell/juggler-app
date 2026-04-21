@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>J-Analyzer Pro v2</title>
+    <title>J-Analyzer AI v3</title>
     <style>
-        :root { --bg: #121212; --card: #1e1e1e; --accent: #007AFF; --text: #ffffff; --sub: #999999; }
+        :root { --bg: #121212; --card: #1e1e1e; --accent: #007AFF; --text: #ffffff; --sub: #999999; --ai: #8E44AD; }
         body { background: var(--bg); color: var(--text); font-family: sans-serif; margin: 0; padding: 15px; padding-bottom: 80px; }
         .card { background: var(--card); padding: 15px; border-radius: 12px; margin-bottom: 12px; }
         label { display: block; font-size: 13px; color: var(--sub); margin-bottom: 8px; }
@@ -15,168 +15,105 @@
         .page { display: none; }
         .active { display: block; }
         .tab-bar { position: fixed; bottom: 0; left: 0; right: 0; height: 60px; background: #1a1a1a; display: flex; border-top: 1px solid #333; }
-        .tab { flex: 1; display: flex; align-items: center; justify-content: center; font-size: 12px; color: var(--sub); }
+        .tab { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 10px; color: var(--sub); }
         .tab.active { color: var(--accent); border-top: 2px solid var(--accent); }
+        .ai-box { border-left: 4px solid var(--ai); padding-left: 10px; margin-top: 10px; }
+        .badge { background: var(--ai); color: white; padding: 2px 8px; border-radius: 4px; font-size: 10px; }
     </style>
 </head>
 <body>
     <div id="input-page" class="page active">
-        <h3 style="margin-top:0">実戦入力</h3>
-        <div class="card">
-            <label>機種選択</label>
-            <select id="machine">
-                <option value="im_ex">アイムジャグラーEX</option>
-                <option value="my_v">マイジャグラーV</option>
-                <option value="funky_2">ファンキージャグラー2</option>
-            </select>
-        </div>
-        <div class="card">
-            <label>店舗・台番</label>
-            <div class="flex"><input type="text" id="shop" placeholder="店舗名"><input type="number" id="unit" placeholder="台番"></div>
-        </div>
+        <h3 style="margin-top:0">実戦データ入力</h3>
+        <div class="card"><label>機種選択</label><select id="machine"><option value="im_ex">アイムジャグラーEX</option><option value="my_v">マイジャグラーV</option><option value="funky_2">ファンキージャグラー2</option></select></div>
+        <div class="card"><label>店舗・台番</label><div class="flex"><input type="text" id="shop" placeholder="店舗名"><input type="number" id="unit" placeholder="台番"></div></div>
         <div class="card"><label>総回転数</label><input type="number" id="totalG" placeholder="0"></div>
         <div class="card"><label>ビッグ (BB)</label><input type="number" id="big" placeholder="0"></div>
-        <div class="card">
-            <label>レギュラー (内訳)</label>
-            <div class="flex">
-                <input type="number" id="regSolo" placeholder="単独">
-                <input type="number" id="regCherry" placeholder="チェ重複">
-            </div>
-        </div>
-        <div class="card">
-            <label>小役カウント</label>
-            <div class="flex">
-                <input type="number" id="grape" placeholder="ぶどう">
-                <input type="number" id="cherry" placeholder="チェリー">
-            </div>
-        </div>
-        <div class="card">
-            <label>ホール期待度</label>
-            <select id="exp"><option value="Normal">通常</option><option value="High">高い (特日)</option><option value="Low">低い</option></select>
-        </div>
-        <button class="btn" onclick="analyze()">解析を実行</button>
+        <div class="card"><label>レギュラー (内訳)</label><div class="flex"><input type="number" id="regSolo" placeholder="単独"><input type="number" id="regCherry" placeholder="チェ重"></div></div>
+        <div class="card"><label>小役 (任意)</label><div class="flex"><input type="number" id="grape" placeholder="ぶどう"><input type="number" id="cherry" placeholder="チェリー"></div></div>
+        <div class="card"><label>ホール期待度</label><select id="exp"><option value="Normal">通常営業</option><option value="High">強い (特日・並び)</option><option value="Low">期待薄</option></select></div>
+        <button class="btn" onclick="analyze()">AI解析を開始</button>
     </div>
 
     <div id="result-page" class="page">
-        <h3>分析結果</h3>
+        <h3>AI 解析レポート</h3>
         <div class="card" id="res-prob"></div>
-        <div class="card" style="border-left:4px solid var(--accent)"><label>AIアドバイス</label><p id="res-advice" style="font-size:14px"></p></div>
-        <button class="btn" style="background:#34C759" onclick="save()">この結果を履歴に保存</button>
-        <button class="btn" style="background:#444" onclick="showPage('input-page')">修正する</button>
+        <div class="card ai-box">
+            <span class="badge">AI THINKING</span>
+            <p id="res-advice" style="font-size:14px; line-height:1.5;"></p>
+        </div>
+        <button class="btn" onclick="save()">履歴に保存</button>
+        <button class="btn" style="background:#444" onclick="showPage('input-page')">再入力</button>
     </div>
 
-    <div id="history-page" class="page"><h3>履歴</h3><div id="hist-list"></div></div>
+    <div id="history-page" class="page"><h3>実戦履歴</h3><div id="hist-list"></div></div>
 
     <div class="tab-bar">
-        <div class="tab active" id="tab-in" onclick="showPage('input-page')">入力</div>
-        <div class="tab" id="tab-hist" onclick="showPage('history-page')">履歴</div>
+        <div class="tab active" id="tab-in" onclick="showPage('input-page')"><span>入力</span></div>
+        <div class="tab" id="tab-hist" onclick="showPage('history-page')"><span>履歴</span></div>
     </div>
 
 <script>
 const machineMaster = {
-    'im_ex': [
-        { s: 1, b: 273.1, rS: 630.2, rC: 1456.4, g: 6.02, c: 35.2 },
-        { s: 2, b: 269.7, rS: 574.9, rC: 1310.7, g: 6.02, c: 35.2 },
-        { s: 3, b: 269.7, rS: 474.9, rC: 1092.3, g: 6.02, c: 35.2 },
-        { s: 4, b: 259.0, rS: 448.9, rC: 1057.0, g: 6.02, c: 35.2 },
-        { s: 5, b: 259.0, rS: 364.1, rC: 851.1, g: 6.02, c: 35.2 },
-        { s: 6, b: 255.0, rS: 364.1, rC: 851.1, g: 5.78, c: 33.0 }
-    ],
-    'my_v': [
-        { s: 1, b: 273.1, rS: 431.2, rC: 1149.8, g: 5.90, c: 35.9 },
-        { s: 2, b: 270.8, rS: 409.6, rC: 1057.0, g: 5.86, c: 35.9 },
-        { s: 3, b: 266.1, rS: 372.4, rC: 993.0, g: 5.82, c: 35.9 },
-        { s: 4, b: 254.0, rS: 321.3, rC: 840.2, g: 5.78, c: 35.9 },
-        { s: 5, b: 240.1, rS: 277.7, rC: 744.7, g: 5.74, c: 35.9 },
-        { s: 6, b: 229.1, rS: 229.1, rC: 630.2, g: 5.66, c: 35.9 }
-    ],
-    'funky_2': [
-        { s: 1, b: 262.1, rS: 439.8, rC: 1213.6, g: 6.15, c: 36.3 },
-        { s: 2, b: 258.0, rS: 412.2, rC: 1092.3, g: 6.10, c: 36.3 },
-        { s: 3, b: 256.0, rS: 366.1, rC: 1024.0, g: 6.05, c: 36.3 },
-        { s: 4, b: 249.2, rS: 322.8, rC: 840.2, g: 6.00, c: 36.3 },
-        { s: 5, b: 240.9, rS: 299.3, rC: 744.7, g: 5.95, c: 36.3 },
-        { s: 6, b: 219.9, rS: 262.1, rC: 630.2, g: 5.85, c: 36.3 }
-    ]
+    'im_ex': { name: 'アイムEX', cfg: [
+        { s: 1, b: 273, rs: 630, rc: 1456, g: 6.02 }, { s: 2, b: 269, rs: 574, rc: 1310, g: 6.02 },
+        { s: 3, b: 269, rs: 474, rc: 1092, g: 6.02 }, { s: 4, b: 259, rs: 448, rc: 1057, g: 6.02 },
+        { s: 5, b: 259, rs: 364, rc: 851, g: 6.02 }, { s: 6, b: 255, rs: 364, rc: 851, g: 5.78 }
+    ]},
+    'my_v': { name: 'マイV', cfg: [
+        { s: 1, b: 273, rs: 431, rc: 1149, g: 5.9 }, { s: 2, b: 270, rs: 409, rc: 1057, g: 5.86 },
+        { s: 3, b: 266, rs: 372, rc: 993, g: 5.82 }, { s: 4, b: 254, rs: 321, rc: 840, g: 5.78 },
+        { s: 5, b: 240, rs: 277, rc: 744, g: 5.74 }, { s: 6, b: 229, rs: 229, rc: 630, g: 5.66 }
+    ]}
 };
 
-let currentRes = null;
-
 function analyze() {
-    const mKey = document.getElementById('machine').value;
-    const master = machineMaster[mKey];
-    const G = parseInt(document.getElementById('totalG').value) || 0;
-    if(G < 100) return alert("回転数が足りません");
+    const m = machineMaster[document.getElementById('machine').value];
+    const G = parseInt(document.getElementById('totalG').value)||0;
+    const bb = parseInt(document.getElementById('big').value)||0;
+    const rs = parseInt(document.getElementById('regSolo').value)||0;
+    const rc = parseInt(document.getElementById('regCherry').value)||0;
+    const gp = parseInt(document.getElementById('grape').value)||0;
+    const exp = document.getElementById('exp').value;
 
-    const d = { 
-        total: G, big: parseInt(document.getElementById('big').value)||0,
-        rS: parseInt(document.getElementById('regSolo').value)||0,
-        rC: parseInt(document.getElementById('regCherry').value)||0,
-        g: parseInt(document.getElementById('grape').value)||0,
-        c: parseInt(document.getElementById('cherry').value)||0,
-        exp: document.getElementById('exp').value
-    };
+    if(G < 100) return alert("データが少なすぎます");
 
-    const otherG = G - (d.big + d.rS + d.rC);
-
-    let logs = master.map(cfg => {
-        // 対数尤度による計算（アンダーフロー防止）
-        let logL = d.big * Math.log(1/cfg.b) + 
-                   d.rS * Math.log(1/cfg.rS) + 
-                   d.rC * Math.log(1/cfg.rC) + 
-                   d.g * Math.log(1/cfg.g) + 
-                   d.c * Math.log(1/cfg.c) +
-                   otherG * Math.log(1 - (1/cfg.b + 1/cfg.rS + 1/cfg.rC + 1/cfg.g + 1/cfg.c));
-        
-        let prior = (d.exp==='High'&&cfg.s>=5) ? 0.4 : (d.exp==='Low'&&cfg.s<=2) ? 0.4 : 0.166;
-        return { s: cfg.s, logV: logL + Math.log(prior) };
+    let results = m.cfg.map(c => {
+        let logL = bb*Math.log(1/c.b) + rs*Math.log(1/c.rs) + rc*Math.log(1/c.rc) + (G-bb-rs-rc)*Math.log(1-(1/c.b+1/c.rs+1/c.rc));
+        if(gp > 0) logL += gp*Math.log(1/c.g) + (G/6.5-gp)*Math.log(1-(1/c.g)); // 簡易ぶどう計算
+        let prior = (exp==='High'&&c.s>=5)?0.4:(exp==='Low'&&c.s<=2)?0.4:0.16;
+        return { s: c.s, v: logL + Math.log(prior) };
     });
 
-    const maxLog = Math.max(...logs.map(l => l.logV));
-    const normalized = logs.map(l => ({ s: l.s, v: Math.exp(l.logV - maxLog) }));
-    const sumV = normalized.reduce((a, b) => a + b.v, 0);
-    const final = normalized.map(n => ({ s: n.s, p: (n.v / sumV * 100).toFixed(1) }));
+    const maxV = Math.max(...results.map(r => r.v));
+    const totalV = results.reduce((a, b) => a + Math.exp(b.v - maxV), 0);
+    const probs = results.map(r => ({ s: r.s, p: (Math.exp(r.v - maxV)/totalV*100) }));
 
-    let html = "<strong>設定推測確率</strong><br>";
-    final.forEach(f => html += `設定${f.s}: <span style="color:var(--accent)">${f.p}%</span><br>`);
+    // AIアドバイス生成
+    let advice = "";
+    const high = probs[4].p + probs[5].p;
+    const low = probs[0].p + probs[1].p;
+    
+    if (rs/G > 1/150) advice += "【警告】単独REGが理論値を逸脱して出現中。設定6でもありえない引きです。数値がバグっているか、奇跡が起きています。 ";
+    else if (high > 60) advice += "【好材料】全体的に高設定の挙動です。特にREG比率が優秀。 ";
+    else if (low > 60) advice += "【危険】低設定の可能性が濃厚。早めの撤退を視野に。 ";
+
+    if (G < 1000) advice += "\n【信頼度: 低】まだサンプル不足です。AIも確信が持てません。";
+    else if (G > 3000) advice += "\n【信頼度: 高】十分な試行回数です。この数値を信じて良いでしょう。";
+
+    let html = `<strong>${m.name} 推測結果</strong><br><small>${G}G BB${bb} RB${rs+rc}</small><hr>`;
+    probs.forEach(p => {
+        html += `設定${p.s}: <span style="color:var(--accent)">${p.p.toFixed(1)}%</span><br>`;
+    });
+
     document.getElementById('res-prob').innerHTML = html;
-
-    let highProb = parseFloat(final[4].p) + parseFloat(final[5].p);
-    let lowProb = parseFloat(final[0].p) + parseFloat(final[1].p);
-    
-    let adv = "";
-    if (highProb > 70) adv = "高設定の期待度が非常に高いです。自信を持って続行！";
-    else if (lowProb > 70) adv = "低設定の可能性が極めて高いです。即時の撤退を推奨。";
-    else if (lowProb > 40) adv = "数値が悪化しています。ホールの状況が良くなければ撤退。";
-    else adv = "判断が難しいラインです。ぶどうの推移を注視してください。";
-    
-    document.getElementById('res-advice').innerText = adv;
-    currentRes = { d, final, mName: document.getElementById('machine').selectedOptions[0].text, shop: document.getElementById('shop').value, unit: document.getElementById('unit').value, date: new Date().toLocaleString() };
+    document.getElementById('res-advice').innerText = advice;
     showPage('result-page');
-}
-
-function save() {
-    let h = JSON.parse(localStorage.getItem('j_hist')||'[]');
-    h.unshift(currentRes);
-    localStorage.setItem('j_hist', JSON.stringify(h));
-    alert("保存しました");
-    renderHist();
-    showPage('history-page');
-}
-
-function renderHist() {
-    let h = JSON.parse(localStorage.getItem('j_hist')||'[]');
-    document.getElementById('hist-list').innerHTML = h.map(x => `<div class="card" style="font-size:12px">${x.date}<br><strong>${x.mName} / ${x.shop} ${x.unit}番台</strong><br>${x.d.total}G BB${x.d.big} RB${x.d.rS+x.d.rC}</div>`).join('');
 }
 
 function showPage(p) {
     document.querySelectorAll('.page').forEach(x => x.classList.remove('active'));
     document.getElementById(p).classList.add('active');
-    document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
-    if(p==='input-page') document.getElementById('tab-in').classList.add('active');
-    if(p==='history-page') document.getElementById('tab-hist').classList.add('active');
 }
-renderHist();
 </script>
 </body>
 </html>
