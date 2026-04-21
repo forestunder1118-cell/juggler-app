@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>J-Analyzer Pro</title>
+    <title>J-Analyzer Pro v2</title>
     <style>
         :root { --bg: #121212; --card: #1e1e1e; --accent: #007AFF; --text: #ffffff; --sub: #999999; }
         body { background: var(--bg); color: var(--text); font-family: sans-serif; margin: 0; padding: 15px; padding-bottom: 80px; }
@@ -24,7 +24,7 @@
         <h3 style="margin-top:0">実戦入力</h3>
         <div class="card">
             <label>機種選択</label>
-            <select id="machine" onchange="changeMachine()">
+            <select id="machine">
                 <option value="im_ex">アイムジャグラーEX</option>
                 <option value="my_v">マイジャグラーV</option>
                 <option value="funky_2">ファンキージャグラー2</option>
@@ -61,7 +61,7 @@
         <h3>分析結果</h3>
         <div class="card" id="res-prob"></div>
         <div class="card" style="border-left:4px solid var(--accent)"><label>AIアドバイス</label><p id="res-advice" style="font-size:14px"></p></div>
-        <button class="btn" style="background:#34C759" onclick="save()">この実戦を履歴に保存</button>
+        <button class="btn" style="background:#34C759" onclick="save()">この結果を履歴に保存</button>
         <button class="btn" style="background:#444" onclick="showPage('input-page')">修正する</button>
     </div>
 
@@ -117,14 +117,25 @@ function analyze() {
         exp: document.getElementById('exp').value
     };
 
-    let scores = master.map(cfg => {
-        let L = Math.pow(1/cfg.b, d.big) * Math.pow(1/cfg.rS, d.rS) * Math.pow(1/cfg.rC, d.rC) * Math.pow(1/cfg.g, d.g) * Math.pow(1/cfg.c, d.c);
-        let P = (d.exp==='High'&&cfg.s>=5) ? 0.3 : (d.exp==='Low'&&cfg.s<=2) ? 0.3 : 1/6;
-        return { s: cfg.s, val: L * P };
+    const otherG = G - (d.big + d.rS + d.rC);
+
+    let logs = master.map(cfg => {
+        // 対数尤度による計算（アンダーフロー防止）
+        let logL = d.big * Math.log(1/cfg.b) + 
+                   d.rS * Math.log(1/cfg.rS) + 
+                   d.rC * Math.log(1/cfg.rC) + 
+                   d.g * Math.log(1/cfg.g) + 
+                   d.c * Math.log(1/cfg.c) +
+                   otherG * Math.log(1 - (1/cfg.b + 1/cfg.rS + 1/cfg.rC + 1/cfg.g + 1/cfg.c));
+        
+        let prior = (d.exp==='High'&&cfg.s>=5) ? 0.4 : (d.exp==='Low'&&cfg.s<=2) ? 0.4 : 0.166;
+        return { s: cfg.s, logV: logL + Math.log(prior) };
     });
 
-    const totalL = scores.reduce((a,b)=>a+b.val, 0);
-    const final = scores.map(s => ({ s: s.s, p: (s.val/totalL*100).toFixed(1) }));
+    const maxLog = Math.max(...logs.map(l => l.logV));
+    const normalized = logs.map(l => ({ s: l.s, v: Math.exp(l.logV - maxLog) }));
+    const sumV = normalized.reduce((a, b) => a + b.v, 0);
+    const final = normalized.map(n => ({ s: n.s, p: (n.v / sumV * 100).toFixed(1) }));
 
     let html = "<strong>設定推測確率</strong><br>";
     final.forEach(f => html += `設定${f.s}: <span style="color:var(--accent)">${f.p}%</span><br>`);
@@ -132,9 +143,14 @@ function analyze() {
 
     let highProb = parseFloat(final[4].p) + parseFloat(final[5].p);
     let lowProb = parseFloat(final[0].p) + parseFloat(final[1].p);
-    let adv = highProb > 60 ? "高設定の期待大！" : (lowProb > 60 ? "撤退を推奨します。" : "様子見が必要です。");
+    
+    let adv = "";
+    if (highProb > 70) adv = "高設定の期待度が非常に高いです。自信を持って続行！";
+    else if (lowProb > 70) adv = "低設定の可能性が極めて高いです。即時の撤退を推奨。";
+    else if (lowProb > 40) adv = "数値が悪化しています。ホールの状況が良くなければ撤退。";
+    else adv = "判断が難しいラインです。ぶどうの推移を注視してください。";
+    
     document.getElementById('res-advice').innerText = adv;
-
     currentRes = { d, final, mName: document.getElementById('machine').selectedOptions[0].text, shop: document.getElementById('shop').value, unit: document.getElementById('unit').value, date: new Date().toLocaleString() };
     showPage('result-page');
 }
