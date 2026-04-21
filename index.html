@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>J-Analyzer Pro</title>
+    <style>
+        :root { --bg: #121212; --card: #1e1e1e; --accent: #007AFF; --text: #ffffff; --sub: #999999; }
+        body { background: var(--bg); color: var(--text); font-family: sans-serif; margin: 0; padding: 15px; padding-bottom: 80px; }
+        .card { background: var(--card); padding: 15px; border-radius: 12px; margin-bottom: 12px; }
+        label { display: block; font-size: 13px; color: var(--sub); margin-bottom: 8px; }
+        input, select { width: 100%; background: none; border: none; border-bottom: 1px solid #333; color: white; font-size: 18px; padding: 5px 0; outline: none; }
+        .flex { display: flex; gap: 10px; }
+        .btn { background: var(--accent); color: white; border: none; width: 100%; padding: 15px; border-radius: 10px; font-weight: bold; margin-top: 10px; }
+        .page { display: none; }
+        .active { display: block; }
+        .tab-bar { position: fixed; bottom: 0; left: 0; right: 0; height: 60px; background: #1a1a1a; display: flex; border-top: 1px solid #333; }
+        .tab { flex: 1; display: flex; align-items: center; justify-content: center; font-size: 12px; color: var(--sub); }
+        .tab.active { color: var(--accent); border-top: 2px solid var(--accent); }
+    </style>
+</head>
+<body>
+    <div id="input-page" class="page active">
+        <h3 style="margin-top:0">実戦入力</h3>
+        <div class="card">
+            <label>機種選択</label>
+            <select id="machine" onchange="changeMachine()">
+                <option value="im_ex">アイムジャグラーEX</option>
+                <option value="my_v">マイジャグラーV</option>
+                <option value="funky_2">ファンキージャグラー2</option>
+            </select>
+        </div>
+        <div class="card">
+            <label>店舗・台番</label>
+            <div class="flex"><input type="text" id="shop" placeholder="店舗名"><input type="number" id="unit" placeholder="台番"></div>
+        </div>
+        <div class="card"><label>総回転数</label><input type="number" id="totalG" placeholder="0"></div>
+        <div class="card"><label>ビッグ (BB)</label><input type="number" id="big" placeholder="0"></div>
+        <div class="card">
+            <label>レギュラー (内訳)</label>
+            <div class="flex">
+                <input type="number" id="regSolo" placeholder="単独">
+                <input type="number" id="regCherry" placeholder="チェ重複">
+            </div>
+        </div>
+        <div class="card">
+            <label>小役カウント</label>
+            <div class="flex">
+                <input type="number" id="grape" placeholder="ぶどう">
+                <input type="number" id="cherry" placeholder="チェリー">
+            </div>
+        </div>
+        <div class="card">
+            <label>ホール期待度</label>
+            <select id="exp"><option value="Normal">通常</option><option value="High">高い (特日)</option><option value="Low">低い</option></select>
+        </div>
+        <button class="btn" onclick="analyze()">解析を実行</button>
+    </div>
+
+    <div id="result-page" class="page">
+        <h3>分析結果</h3>
+        <div class="card" id="res-prob"></div>
+        <div class="card" style="border-left:4px solid var(--accent)"><label>AIアドバイス</label><p id="res-advice" style="font-size:14px"></p></div>
+        <button class="btn" style="background:#34C759" onclick="save()">この実戦を履歴に保存</button>
+        <button class="btn" style="background:#444" onclick="showPage('input-page')">修正する</button>
+    </div>
+
+    <div id="history-page" class="page"><h3>履歴</h3><div id="hist-list"></div></div>
+
+    <div class="tab-bar">
+        <div class="tab active" id="tab-in" onclick="showPage('input-page')">入力</div>
+        <div class="tab" id="tab-hist" onclick="showPage('history-page')">履歴</div>
+    </div>
+
+<script>
+const machineMaster = {
+    'im_ex': [
+        { s: 1, b: 273.1, rS: 630.2, rC: 1456.4, g: 6.02, c: 35.2 },
+        { s: 2, b: 269.7, rS: 574.9, rC: 1310.7, g: 6.02, c: 35.2 },
+        { s: 3, b: 269.7, rS: 474.9, rC: 1092.3, g: 6.02, c: 35.2 },
+        { s: 4, b: 259.0, rS: 448.9, rC: 1057.0, g: 6.02, c: 35.2 },
+        { s: 5, b: 259.0, rS: 364.1, rC: 851.1, g: 6.02, c: 35.2 },
+        { s: 6, b: 255.0, rS: 364.1, rC: 851.1, g: 5.78, c: 33.0 }
+    ],
+    'my_v': [
+        { s: 1, b: 273.1, rS: 431.2, rC: 1149.8, g: 5.90, c: 35.9 },
+        { s: 2, b: 270.8, rS: 409.6, rC: 1057.0, g: 5.86, c: 35.9 },
+        { s: 3, b: 266.1, rS: 372.4, rC: 993.0, g: 5.82, c: 35.9 },
+        { s: 4, b: 254.0, rS: 321.3, rC: 840.2, g: 5.78, c: 35.9 },
+        { s: 5, b: 240.1, rS: 277.7, rC: 744.7, g: 5.74, c: 35.9 },
+        { s: 6, b: 229.1, rS: 229.1, rC: 630.2, g: 5.66, c: 35.9 }
+    ],
+    'funky_2': [
+        { s: 1, b: 262.1, rS: 439.8, rC: 1213.6, g: 6.15, c: 36.3 },
+        { s: 2, b: 258.0, rS: 412.2, rC: 1092.3, g: 6.10, c: 36.3 },
+        { s: 3, b: 256.0, rS: 366.1, rC: 1024.0, g: 6.05, c: 36.3 },
+        { s: 4, b: 249.2, rS: 322.8, rC: 840.2, g: 6.00, c: 36.3 },
+        { s: 5, b: 240.9, rS: 299.3, rC: 744.7, g: 5.95, c: 36.3 },
+        { s: 6, b: 219.9, rS: 262.1, rC: 630.2, g: 5.85, c: 36.3 }
+    ]
+};
+
+let currentRes = null;
+
+function analyze() {
+    const mKey = document.getElementById('machine').value;
+    const master = machineMaster[mKey];
+    const G = parseInt(document.getElementById('totalG').value) || 0;
+    if(G < 100) return alert("回転数が足りません");
+
+    const d = { 
+        total: G, big: parseInt(document.getElementById('big').value)||0,
+        rS: parseInt(document.getElementById('regSolo').value)||0,
+        rC: parseInt(document.getElementById('regCherry').value)||0,
+        g: parseInt(document.getElementById('grape').value)||0,
+        c: parseInt(document.getElementById('cherry').value)||0,
+        exp: document.getElementById('exp').value
+    };
+
+    let scores = master.map(cfg => {
+        let L = Math.pow(1/cfg.b, d.big) * Math.pow(1/cfg.rS, d.rS) * Math.pow(1/cfg.rC, d.rC) * Math.pow(1/cfg.g, d.g) * Math.pow(1/cfg.c, d.c);
+        let P = (d.exp==='High'&&cfg.s>=5) ? 0.3 : (d.exp==='Low'&&cfg.s<=2) ? 0.3 : 1/6;
+        return { s: cfg.s, val: L * P };
+    });
+
+    const totalL = scores.reduce((a,b)=>a+b.val, 0);
+    const final = scores.map(s => ({ s: s.s, p: (s.val/totalL*100).toFixed(1) }));
+
+    let html = "<strong>設定推測確率</strong><br>";
+    final.forEach(f => html += `設定${f.s}: <span style="color:var(--accent)">${f.p}%</span><br>`);
+    document.getElementById('res-prob').innerHTML = html;
+
+    let highProb = parseFloat(final[4].p) + parseFloat(final[5].p);
+    let lowProb = parseFloat(final[0].p) + parseFloat(final[1].p);
+    let adv = highProb > 60 ? "高設定の期待大！" : (lowProb > 60 ? "撤退を推奨します。" : "様子見が必要です。");
+    document.getElementById('res-advice').innerText = adv;
+
+    currentRes = { d, final, mName: document.getElementById('machine').selectedOptions[0].text, shop: document.getElementById('shop').value, unit: document.getElementById('unit').value, date: new Date().toLocaleString() };
+    showPage('result-page');
+}
+
+function save() {
+    let h = JSON.parse(localStorage.getItem('j_hist')||'[]');
+    h.unshift(currentRes);
+    localStorage.setItem('j_hist', JSON.stringify(h));
+    alert("保存しました");
+    renderHist();
+    showPage('history-page');
+}
+
+function renderHist() {
+    let h = JSON.parse(localStorage.getItem('j_hist')||'[]');
+    document.getElementById('hist-list').innerHTML = h.map(x => `<div class="card" style="font-size:12px">${x.date}<br><strong>${x.mName} / ${x.shop} ${x.unit}番台</strong><br>${x.d.total}G BB${x.d.big} RB${x.d.rS+x.d.rC}</div>`).join('');
+}
+
+function showPage(p) {
+    document.querySelectorAll('.page').forEach(x => x.classList.remove('active'));
+    document.getElementById(p).classList.add('active');
+    document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+    if(p==='input-page') document.getElementById('tab-in').classList.add('active');
+    if(p==='history-page') document.getElementById('tab-hist').classList.add('active');
+}
+renderHist();
+</script>
+</body>
+</html>
