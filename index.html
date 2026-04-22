@@ -3,99 +3,99 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>J-Analyzer AI v4</title>
+    <title>J-Analyzer AI v6</title>
     <style>
-        :root { --bg: #121212; --card: #1e1e1e; --accent: #007AFF; --text: #ffffff; --sub: #999999; --ai: #8E44AD; }
-        body { background: var(--bg); color: var(--text); font-family: sans-serif; margin: 0; padding: 15px; padding-bottom: 80px; }
+        :root { --bg: #0d0d0d; --card: #1a1a1a; --accent: #007AFF; --text: #ffffff; --ai: #8E44AD; }
+        body { background: var(--bg); color: var(--text); font-family: -apple-system, sans-serif; margin: 0; padding: 15px; }
         .card { background: var(--card); padding: 15px; border-radius: 12px; margin-bottom: 12px; }
-        label { display: block; font-size: 13px; color: var(--sub); margin-bottom: 8px; }
-        input, select { width: 100%; background: none; border: none; border-bottom: 1px solid #333; color: white; font-size: 18px; padding: 5px 0; outline: none; }
-        .flex { display: flex; gap: 10px; }
-        .btn { background: var(--accent); color: white; border: none; width: 100%; padding: 15px; border-radius: 10px; font-weight: bold; margin-top: 10px; }
-        .page { display: none; }
-        .active { display: block; }
-        .tab-bar { position: fixed; bottom: 0; left: 0; right: 0; height: 60px; background: #1a1a1a; display: flex; border-top: 1px solid #333; }
-        .tab { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 10px; color: var(--sub); }
-        .ai-box { border-left: 4px solid var(--ai); padding-left: 10px; margin-top: 10px; }
+        input, select, textarea { width: 100%; background: #2c2c2e; border: none; border-radius: 8px; color: white; padding: 12px; margin-bottom: 10px; box-sizing: border-box; }
+        .btn { background: var(--accent); color: white; border: none; width: 100%; padding: 15px; border-radius: 10px; font-weight: bold; }
+        #chat-log { height: 300px; overflow-y: auto; border-top: 1px solid #333; padding-top: 10px; margin-top: 10px; font-size: 14px; line-height: 1.6; }
+        .ai-msg { color: #d1b3ff; margin-bottom: 15px; }
+        .user-msg { color: #888; text-align: right; margin-bottom: 10px; font-size: 12px; }
+        .hidden { display: none; }
     </style>
 </head>
 <body>
-    <div id="input-page" class="page active">
-        <h3 style="margin-top:0">実戦入力</h3>
-        <div class="card"><label>機種</label><select id="machine"><option value="im_ex">アイムEX</option><option value="my_v">マイV</option></select></div>
-        <div class="card"><label>総回転数</label><input type="number" id="totalG" placeholder="0"></div>
-        <div class="card"><label>BB / RB (合算)</label><div class="flex"><input type="number" id="big" placeholder="BB"><input type="number" id="reg" placeholder="RB"></div></div>
-        <div class="card"><label>ぶどう (任意)</label><input type="number" id="grape" placeholder="カウント数"></div>
-        <div class="card"><label>ホール期待度</label><select id="exp"><option value="1">通常 (16%)</option><option value="2.5">高い (40%)</option></select></div>
-        <button class="btn" onclick="analyze()">精密AI解析</button>
+    <div id="setup-page">
+        <h3>API Setup</h3>
+        <p style="font-size:12px; color:#888;">Google AI Studioで発行したGemini APIキーを入力してください。</p>
+        <input type="password" id="api-key" placeholder="AIzaSy...">
+        <button class="btn" onclick="saveKey()">設定を保存して開始</button>
     </div>
 
-    <div id="result-page" class="page">
-        <h3>解析レポート</h3>
-        <div class="card" id="res-prob"></div>
-        <div class="card ai-box"><p id="res-advice" style="font-size:14px; white-space:pre-wrap;"></p></div>
-        <button class="btn" onclick="showPage('input-page')">戻る</button>
+    <div id="main-page" class="hidden">
+        <div class="card">
+            <select id="machine"><option value="my_v">マイジャグラーV</option><option value="im_ex">アイムジャグラーEX</option></select>
+            <div style="display:flex; gap:5px;">
+                <input type="number" id="totalG" placeholder="総回転">
+                <input type="number" id="big" placeholder="BB">
+                <input type="number" id="reg" placeholder="RB">
+                <input type="number" id="gp" placeholder="ぶどう">
+            </div>
+            <textarea id="context" placeholder="【周りの状況】例：角台が爆発してる、左隣が設定6挙動、特定日など" rows="2"></textarea>
+            <button id="send-btn" class="btn" onclick="askAI()">AIに状況を相談する</button>
+        </div>
+        <div id="chat-log"></div>
     </div>
 
 <script>
 const master = {
-    'im_ex': [
-        {s:1, b:273, r:439, g:6.02}, {s:2, b:269, r:399, g:6.02},
-        {s:3, b:269, r:331, g:6.02}, {s:4, b:259, r:315, g:6.02},
-        {s:5, b:259, r:255, g:6.02}, {s:6, b:255, r:255, g:5.78}
-    ],
-    'my_v': [
-        {s:1, b:273, r:431, g:5.9}, {s:2, b:270, r:409, g:5.86},
-        {s:3, b:266, r:372, g:5.82}, {s:4, b:254, r:321, g:5.78},
-        {s:5, b:240, r:277, g:5.74}, {s:6, b:229, r:229, g:5.66}
-    ]
+    'my_v': [{s:1,b:273,r:431,g:5.9},{s:6,b:229,r:229,g:5.66}], // 簡略化
+    'im_ex': [{s:1,b:273,r:439,g:6.02},{s:6,b:255,r:255,g:5.78}]
 };
 
-function analyze() {
-    const G = parseInt(document.getElementById('totalG').value);
-    const bb = parseInt(document.getElementById('big').value)||0;
-    const rb = parseInt(document.getElementById('reg').value)||0;
-    const gp = parseInt(document.getElementById('grape').value)||0;
-    const weight = parseFloat(document.getElementById('exp').value);
-    const cfgs = master[document.getElementById('machine').value];
-
-    if(!G || G < 100) return alert("回転数を入れてください");
-
-    let results = cfgs.map(c => {
-        // 対数尤度 (log-likelihood)
-        let logL = bb*Math.log(1/c.b) + rb*Math.log(1/c.r) + (G-bb-rb)*Math.log(1-(1/c.b+1/c.r));
-        // ぶどうの重みを強化
-        if(gp > 0) logL += gp*Math.log(1/c.g) + (G-gp*c.g > 0 ? (G/c.g - gp) : 0)*Math.log(1-1/c.g);
-        // ホール状況による補正
-        let prior = (c.s >= 5) ? weight : 1.0;
-        return { s: c.s, v: logL + Math.log(prior) };
-    });
-
-    const maxV = Math.max(...results.map(r => r.v));
-    const sumV = results.reduce((a, b) => a + Math.exp(b.v - maxV), 0);
-    const probs = results.map(r => ({ s: r.s, p: Math.exp(r.v - maxV)/sumV }));
-
-    let html = `<strong>設定推測確率</strong><br>`;
-    probs.forEach(p => {
-        html += `設定${p.s}: <span style="color:var(--accent)">${(p.p*100).toFixed(1)}%</span><br>`;
-    });
-    document.getElementById('res-prob').innerHTML = html;
-
-    let advice = "【AI診断】\n";
-    if(gp > 0) advice += `ぶどう逆算値: 1/${(G/gp).toFixed(2)}\n`;
-    if(probs[5].p > 0.5) advice += "設定6の可能性が極めて高いですが、ぶどうの垂れに注意してください。";
-    else if(probs[0].p + probs[1].p > 0.5) advice += "低設定の挙動です。粘る根拠がなければ撤退推奨。";
-    else advice += "中間設定もしくは判断保留。追加の回転数が必要です。";
-
-    document.getElementById('res-advice').innerText = advice;
-    showPage('result-page');
+function saveKey() {
+    const key = document.getElementById('api-key').value;
+    if(key) {
+        localStorage.setItem('gemini_key', key);
+        init();
+    }
 }
 
-function showPage(p) {
-    document.querySelectorAll('.page').forEach(x => x.classList.remove('active'));
-    document.getElementById(p).classList.add('active');
+function init() {
+    if(localStorage.getItem('gemini_key')) {
+        document.getElementById('setup-page').classList.add('hidden');
+        document.getElementById('main-page').classList.remove('hidden');
+    }
 }
+
+async function askAI() {
+    const key = localStorage.getItem('gemini_key');
+    const G = document.getElementById('totalG').value;
+    const bb = document.getElementById('big').value;
+    const rb = document.getElementById('reg').value;
+    const gp = document.getElementById('gp').value;
+    const ctx = document.getElementById('context').value;
+    const btn = document.getElementById('send-btn');
+
+    if(!G) return alert("数値を入力してください");
+
+    const log = document.getElementById('chat-log');
+    log.innerHTML += `<div class="user-msg">${G}G BB${bb} RB${rb} を送信中...</div>`;
+    btn.disabled = true;
+
+    const prompt = `あなたは凄腕のスロット設定師です。以下のデータを解析し、打ち続けるべきかチャット形式で論評してください。
+    【実機データ】機種:${document.getElementById('machine').value}, 回転数:${G}, BB:${bb}, RB:${rb}, ぶどう:${gp}
+    【現場の状況】${ctx}
+    ※数値上の確率だけでなく、現場の状況を加味して「プロならどう動くか」を厳しく、かつ論理的に教えてください。`;
+
+    try {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, {
+            method: 'POST',
+            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+        });
+        const data = await res.json();
+        const text = data.candidates[0].content.parts[0].text;
+        log.innerHTML += `<div class="ai-msg"><strong>AI解析:</strong><br>${text.replace(/\n/g, '<br>')}</div>`;
+        log.scrollTop = log.scrollHeight;
+    } catch (e) {
+        alert("エラーが発生しました。APIキーを確認してください。");
+    } finally {
+        btn.disabled = false;
+    }
+}
+init();
 </script>
 </body>
 </html>
-
