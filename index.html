@@ -3,17 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>J-Analyzer AI v9</title>
+    <title>J-Analyzer AI v10</title>
     <style>
         :root { --bg: #0d0d0d; --card: #1a1a1a; --accent: #007AFF; --text: #ffffff; --ai: #8E44AD; }
         body { background: var(--bg); color: var(--text); font-family: -apple-system, sans-serif; margin: 0; padding: 10px; }
         .card { background: var(--card); padding: 20px; border-radius: 16px; margin-bottom: 12px; }
         label { display: block; font-size: 11px; color: #888; margin-bottom: 4px; font-weight: bold; }
-        input, select, textarea { width: 100%; background: #2c2c2e; border: none; border-radius: 8px; color: white; padding: 12px; margin-bottom: 10px; box-sizing: border-box; font-size: 16px; -webkit-appearance: none; }
+        input, select, textarea { width: 100%; background: #2c2c2e; border: none; border-radius: 8px; color: white; padding: 12px; margin-bottom: 10px; box-sizing: border-box; font-size: 16px; }
         .btn { background: var(--accent); color: white; border: none; width: 100%; padding: 16px; border-radius: 12px; font-weight: bold; font-size: 16px; cursor: pointer; }
         .btn:disabled { opacity: 0.5; }
-        #chat-log { border-top: 1px solid #333; padding-top: 15px; margin-top: 15px; }
-        .ai-msg { color: #d1b3ff; line-height: 1.6; background: #251b36; padding: 15px; border-radius: 12px; margin-bottom: 20px; font-size: 14px; }
+        .ai-msg { color: #d1b3ff; line-height: 1.6; background: #251b36; padding: 15px; border-radius: 12px; margin-top: 20px; font-size: 14px; }
         .hidden { display: none; }
         .row { display: flex; gap: 8px; }
         .row > div { flex: 1; }
@@ -22,7 +21,7 @@
 <body>
     <div id="setup-page">
         <div class="card">
-            <h3>Gemini API Setup</h3>
+            <h3>API Setup</h3>
             <input type="password" id="api-key" placeholder="APIキーを入力">
             <button class="btn" onclick="saveKey()">保存して開始</button>
         </div>
@@ -54,8 +53,8 @@
                 <div><label>非重複チェリー</label><input type="number" id="cherry" placeholder="150"></div>
             </div>
 
-            <label>現場の状況（AIが考慮します）</label>
-            <textarea id="context" placeholder="例：角台が強そう、並びで高設定挙動など" rows="3"></textarea>
+            <label>現場の状況</label>
+            <textarea id="context" placeholder="例：角が良さそう、全体的に弱そうなど" rows="3"></textarea>
             
             <button id="send-btn" class="btn" onclick="askAI()">AIに状況を相談する</button>
             <div id="chat-log"></div>
@@ -67,53 +66,50 @@ function saveKey() {
     const key = document.getElementById('api-key').value.trim();
     if(key) { localStorage.setItem('gemini_key', key); location.reload(); }
 }
-function resetKey() { if(confirm("APIキーを解除しますか？")) { localStorage.removeItem('gemini_key'); location.reload(); } }
+function resetKey() { if(confirm("キーを解除しますか？")) { localStorage.removeItem('gemini_key'); location.reload(); } }
 function init() { if(localStorage.getItem('gemini_key')) { document.getElementById('setup-page').classList.add('hidden'); document.getElementById('main-page').classList.remove('hidden'); } }
 
 async function askAI() {
     const key = localStorage.getItem('gemini_key');
     const G = document.getElementById('totalG').value;
-    const bb = document.getElementById('big').value || 0;
-    const sr = document.getElementById('s_reg').value || 0;
-    const cr = document.getElementById('c_reg').value || 0;
-    const gp = document.getElementById('gp').value || 0;
-    const ch = document.getElementById('cherry').value || 0;
     const ctx = document.getElementById('context').value;
     const btn = document.getElementById('send-btn');
     const log = document.getElementById('chat-log');
 
-    if(!G) return alert("総回転数を入力してください");
-    log.innerHTML = `<div style="color:#888; font-size:12px; text-align:center;">AIが状況を整理しています...</div>`;
+    if(!G) return alert("回転数を入力してください");
+    log.innerHTML = `<div style="color:#888; font-size:12px; text-align:center;">AIが解析中...</div>`;
     btn.disabled = true;
 
-    // APIエンドポイントを v1 (安定版) に変更
-    const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${key}`;
+    // モデル名の指定をより確実なものに変更
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${key}`;
     
-    const prompt = `あなたはパチスロ設定推測のプロです。以下のデータを元に、期待期待値を最大化するための戦略をチャット形式で詳しく論評してください。
-    【実機データ】
-    機種:${document.getElementById('machine').value === 'my_v' ? 'マイジャグラーV' : 'アイムジャグラーEX'}
-    回転数:${G}G, BB:${bb}回, 単独REG:${sr}回, チェリー重複REG:${cr}回, ぶどう:${gp}回, チェリー:${ch}回
-    【現場の状況】
-    ${ctx}
-    
-    ※単独REG確率やぶどう確率の理論値との乖離を指摘しつつ、現場の状況を含めて「追うべきか、引くべきか」プロの冷徹な視点でアドバイスをください。`;
+    const prompt = {
+        contents: [{
+            parts: [{
+                text: `パチスロ設定推測のプロとして論評してください。
+                機種:${document.getElementById('machine').value}, 回転数:${G}, BB:${document.getElementById('big').value}, 
+                単独REG:${document.getElementById('s_reg').value}, 重複REG:${document.getElementById('c_reg').value}, 
+                ぶどう:${document.getElementById('gp').value}, チェリー:${document.getElementById('cherry').value}
+                状況:${ctx}
+                数値と状況から「追うべきか引くべきか」をハッキリ回答してください。`
+            }]
+        }]
+    };
 
     try {
         const res = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+            body: JSON.stringify(prompt)
         });
         const data = await res.json();
         
-        if (data.error) {
-            throw new Error(data.error.message);
-        }
+        if (data.error) throw new Error(data.error.message);
         
         const text = data.candidates[0].content.parts[0].text;
         log.innerHTML = `<div class="ai-msg"><strong>AI解析レポート:</strong><br><br>${text.replace(/\n/g, '<br>')}</div>`;
     } catch (e) {
-        log.innerHTML = `<div class="ai-msg" style="color:#ff3b30; background:#301515;"><strong>接続エラー:</strong><br>${e.message}<br><br>※APIキーが正しいか、またはGoogle側でモデルが準備中かもしれません。</div>`;
+        log.innerHTML = `<div class="ai-msg" style="color:#ff3b30; background:#301515;"><strong>接続エラー:</strong><br>${e.message}<br><br>※Google AI Studioで新しいキーを発行し直すと解決する場合があります。</div>`;
     } finally {
         btn.disabled = false;
     }
