@@ -3,53 +3,59 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>J-Analyzer AI v6</title>
+    <title>J-Analyzer AI v7</title>
     <style>
         :root { --bg: #0d0d0d; --card: #1a1a1a; --accent: #007AFF; --text: #ffffff; --ai: #8E44AD; }
         body { background: var(--bg); color: var(--text); font-family: -apple-system, sans-serif; margin: 0; padding: 15px; }
         .card { background: var(--card); padding: 15px; border-radius: 12px; margin-bottom: 12px; }
         input, select, textarea { width: 100%; background: #2c2c2e; border: none; border-radius: 8px; color: white; padding: 12px; margin-bottom: 10px; box-sizing: border-box; }
-        .btn { background: var(--accent); color: white; border: none; width: 100%; padding: 15px; border-radius: 10px; font-weight: bold; }
-        #chat-log { height: 300px; overflow-y: auto; border-top: 1px solid #333; padding-top: 10px; margin-top: 10px; font-size: 14px; line-height: 1.6; }
-        .ai-msg { color: #d1b3ff; margin-bottom: 15px; }
+        .btn { background: var(--accent); color: white; border: none; width: 100%; padding: 15px; border-radius: 10px; font-weight: bold; cursor: pointer; }
+        #chat-log { height: 350px; overflow-y: auto; border-top: 1px solid #333; padding-top: 10px; margin-top: 10px; font-size: 14px; }
+        .ai-msg { color: #d1b3ff; margin-bottom: 15px; border-left: 2px solid var(--ai); padding-left: 10px; }
         .user-msg { color: #888; text-align: right; margin-bottom: 10px; font-size: 12px; }
         .hidden { display: none; }
+        .reset-btn { background: none; color: #ff3b30; border: none; font-size: 12px; margin-top: 20px; text-decoration: underline; }
     </style>
 </head>
 <body>
     <div id="setup-page">
         <h3>API Setup</h3>
-        <p style="font-size:12px; color:#888;">Google AI Studioで発行したGemini APIキーを入力してください。</p>
+        <p style="font-size:12px; color:#888;">Gemini APIキーを入力してください。</p>
         <input type="password" id="api-key" placeholder="AIzaSy...">
-        <button class="btn" onclick="saveKey()">設定を保存して開始</button>
+        <button class="btn" onclick="saveKey()">保存して解析開始</button>
     </div>
 
     <div id="main-page" class="hidden">
         <div class="card">
-            <select id="machine"><option value="my_v">マイジャグラーV</option><option value="im_ex">アイムジャグラーEX</option></select>
+            <div style="display:flex; gap:5px; margin-bottom:10px;">
+                <select id="machine" style="flex:2;"><option value="my_v">マイジャグV</option><option value="im_ex">アイムEX</option></select>
+                <button class="btn" style="flex:1; background:#444;" onclick="resetKey()">キー再設定</button>
+            </div>
             <div style="display:flex; gap:5px;">
-                <input type="number" id="totalG" placeholder="総回転">
+                <input type="number" id="totalG" placeholder="総回">
                 <input type="number" id="big" placeholder="BB">
                 <input type="number" id="reg" placeholder="RB">
-                <input type="number" id="gp" placeholder="ぶどう">
+                <input type="number" id="gp" placeholder="ぶど">
             </div>
-            <textarea id="context" placeholder="【周りの状況】例：角台が爆発してる、左隣が設定6挙動、特定日など" rows="2"></textarea>
+            <textarea id="context" placeholder="【現場の状況】例：並びで強そう、特定日、末尾など" rows="2"></textarea>
             <button id="send-btn" class="btn" onclick="askAI()">AIに状況を相談する</button>
         </div>
         <div id="chat-log"></div>
     </div>
 
 <script>
-const master = {
-    'my_v': [{s:1,b:273,r:431,g:5.9},{s:6,b:229,r:229,g:5.66}], // 簡略化
-    'im_ex': [{s:1,b:273,r:439,g:6.02},{s:6,b:255,r:255,g:5.78}]
-};
-
 function saveKey() {
-    const key = document.getElementById('api-key').value;
+    const key = document.getElementById('api-key').value.trim();
     if(key) {
         localStorage.setItem('gemini_key', key);
-        init();
+        location.reload();
+    }
+}
+
+function resetKey() {
+    if(confirm("APIキーを消去して再設定画面に戻りますか？")) {
+        localStorage.removeItem('gemini_key');
+        location.reload();
     }
 }
 
@@ -63,34 +69,41 @@ function init() {
 async function askAI() {
     const key = localStorage.getItem('gemini_key');
     const G = document.getElementById('totalG').value;
-    const bb = document.getElementById('big').value;
-    const rb = document.getElementById('reg').value;
-    const gp = document.getElementById('gp').value;
+    const bb = document.getElementById('big').value || 0;
+    const rb = document.getElementById('reg').value || 0;
+    const gp = document.getElementById('gp').value || 0;
     const ctx = document.getElementById('context').value;
     const btn = document.getElementById('send-btn');
-
-    if(!G) return alert("数値を入力してください");
-
     const log = document.getElementById('chat-log');
-    log.innerHTML += `<div class="user-msg">${G}G BB${bb} RB${rb} を送信中...</div>`;
+
+    if(!G) return alert("総回転数を入力してください");
+    
+    log.innerHTML += `<div class="user-msg">${G}G BB${bb} RB${rb} 解析中...</div>`;
     btn.disabled = true;
 
     const prompt = `あなたは凄腕のスロット設定師です。以下のデータを解析し、打ち続けるべきかチャット形式で論評してください。
     【実機データ】機種:${document.getElementById('machine').value}, 回転数:${G}, BB:${bb}, RB:${rb}, ぶどう:${gp}
     【現場の状況】${ctx}
-    ※数値上の確率だけでなく、現場の状況を加味して「プロならどう動くか」を厳しく、かつ論理的に教えてください。`;
+    ※数値上の確率だけでなく、現場の状況を加味してプロの視点で助言してください。`;
 
     try {
         const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, {
             method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
         });
+        
         const data = await res.json();
+        
+        if (data.error) {
+            throw new Error(`Google Error: ${data.error.message}`);
+        }
+        
         const text = data.candidates[0].content.parts[0].text;
         log.innerHTML += `<div class="ai-msg"><strong>AI解析:</strong><br>${text.replace(/\n/g, '<br>')}</div>`;
         log.scrollTop = log.scrollHeight;
     } catch (e) {
-        alert("エラーが発生しました。APIキーを確認してください。");
+        log.innerHTML += `<div class="ai-msg" style="color:#ff3b30;"><strong>エラー詳細:</strong><br>${e.message}<br><br>※キーが間違っているか、有効化されていない可能性があります。</div>`;
     } finally {
         btn.disabled = false;
     }
